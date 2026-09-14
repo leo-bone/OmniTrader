@@ -1,0 +1,4 @@
+streamlit>=1.30
+plotly>=5.0
+# optional, for live Binance data:
+ccxt>=4.0
