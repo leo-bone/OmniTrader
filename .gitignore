@@ -1,0 +1,32 @@
+# Byte-compiled / caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Test / tool caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Secrets — never commit
+.env
+*.key
+*.pem
+secrets.json
+credentials.json
+
+# OS
+.DS_Store
+
+# Node (dashboard/web)
+node_modules/
+dist/
+web/dist/
