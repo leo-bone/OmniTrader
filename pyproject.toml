@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omni-trader"
+version = "0.1.0"
+description = "Open-source adaptive crypto quant trading framework: zero-lookahead backtester, live-wired risk controls, CEX + on-chain execution."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "leo-bone" }]
+keywords = ["quant", "crypto", "trading", "backtest", "algorithmic-trading"]
+dependencies = [
+    "pytest>=7.0",
+]
+
+[project.optional-dependencies]
+live = ["ccxt>=4.0"]
+dashboard = ["streamlit>=1.30", "plotly>=5.0"]
+onchain = ["web3>=6.0", "solders>=0.18", "base58>=2.1"]
+dev = ["pytest>=7.0", "pytest-cov"]
+all = ["ccxt>=4.0", "streamlit>=1.30", "plotly>=5.0", "web3>=6.0", "solders>=0.18", "base58>=2.1"]
+
+[project.scripts]
+omnitrader = "omni_trader.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["omni_trader*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
