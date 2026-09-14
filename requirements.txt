@@ -1,0 +1,5 @@
+# Core (no heavy deps — backtester runs on stdlib only)
+pytest>=7.0
+
+# Optional: live Binance execution via CCXT (gated/safe by default)
+# ccxt>=4.0
