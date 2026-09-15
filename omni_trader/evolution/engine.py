@@ -132,6 +132,7 @@ class EvolutionResult:
     generations_run: int
     elapsed_sec: float
     stop_reason: str
+    degraded_selection: bool = False  # True -> champion failed the eligibility gates
     lineage: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -148,6 +149,7 @@ class EvolutionResult:
             "generations_run": self.generations_run,
             "elapsed_sec": round(self.elapsed_sec, 3),
             "stop_reason": self.stop_reason,
+            "degraded_selection": self.degraded_selection,
             "lineage": self.lineage,
         }
 
@@ -279,6 +281,7 @@ class EvolutionEngine:
         cfg = self.cfg
         self.population = self._seed_population()
         best_ever: Optional[FitnessReport] = None
+        best_eligible: Optional[FitnessReport] = None
         no_improve = 0
         stop_reason = "completed"
         gen = 0
@@ -323,6 +326,14 @@ class EvolutionEngine:
             else:
                 no_improve += 1
 
+            # Selection is driven by raw fitness, but only an *eligible* genome
+            # may be crowned. Track the best one separately so a high-scoring
+            # genome that lost money on its own training segment cannot win on
+            # an accident of the validation split.
+            if best.eligible:
+                if best_eligible is None or best.fitness > best_eligible.fitness + 1e-9:
+                    best_eligible = best
+
             if no_improve >= cfg.patience:
                 stop_reason = f"early stop: no improvement for {cfg.patience} generations"
                 break
@@ -334,11 +345,16 @@ class EvolutionEngine:
                 raise RuntimeError("evolution cancelled before any evaluations completed")
             raise RuntimeError("evolution produced no evaluations")
 
-        champion = best_ever.genome
-        test_metrics = self.evaluator.score_held_out(champion, self.test_feed)
-        champ_is = best_ever.is_metrics
-        champ_oos = best_ever.oos_metrics
+        # Prefer an eligible champion. Falling back to the raw best is a last
+        # resort; whether that happened travels in `degraded_selection` rather
+        # than in stop_reason, which stays purely about why the loop ended.
+        champ_report = best_eligible if best_eligible is not None else best_ever
+        degraded = best_eligible is None
 
+        champion = champ_report.genome
+        test_metrics = self.evaluator.score_held_out(champion, self.test_feed)
+        champ_is = champ_report.is_metrics
+        champ_oos = champ_report.oos_metrics
         # reconstruct the champion's ancestry for display
         lineage: List[Dict[str, Any]] = []
         cur: Optional[Genome] = champion
@@ -353,9 +369,9 @@ class EvolutionEngine:
             cur = self.lineage.get(cur.parents[0])
 
         return EvolutionResult(
-            champion=champion, champion_fitness=best_ever.fitness,
+            champion=champion, champion_fitness=champ_report.fitness,
             champion_is=champ_is, champion_oos=champ_oos,
-            champion_test=test_metrics,
+            champion_test=test_metrics, degraded_selection=degraded,
             runner_ups=self.hall_of_fame[1:6],
             hall_of_fame=self.hall_of_fame,
             history=list(self.history),
