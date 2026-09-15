@@ -98,6 +98,77 @@ class DataFeed:
             ts += step
         return cls(symbol=symbol, timeframe=timeframe, bars=bars)
 
+    @classmethod
+    def generate_regimes(
+        cls,
+        symbol: str = "SYNTHUSDT",
+        n: int = 3000,
+        blocks: int = 8,
+        start_price: float = 30000.0,
+        vol: float = 0.008,
+        seed: int = 7,
+        timeframe: str = "1h",
+    ) -> "DataFeed":
+        """Synthetic market that alternates between real regimes.
+
+        A plain random walk has NO exploitable structure — searching parameters
+        against one just measures luck, and every "profit" the evolution finds
+        is noise it will give back immediately. Real markets rotate between
+        trending, chopping and mean-reverting stretches, and those regimes
+        favour *different* strategies. This generator produces that rotation, so
+        the evolution has something genuine to discover and the multi-species
+        population has a reason to compete.
+
+        Regime cycle: trending -> chopping -> mean-reverting -> trending ...
+        (direction alternates on each trend block)
+        """
+        rng = random.Random(seed)
+        kinds = ["trend", "chop", "revert", "trend", "revert", "chop"]
+        step = 3600 if timeframe == "1h" else 86400
+        ts = int(datetime(2024, 1, 1).timestamp())
+        per = max(20, n // max(1, blocks))
+        price = start_price
+        bars: List[Bar] = []
+        trend_sign = 1
+        i = 0
+        while len(bars) < n:
+            kind = kinds[i % len(kinds)]
+            run = per if len(bars) + per <= n else n - len(bars)
+            if kind == "trend":
+                trend_sign *= -1 if (i % (2 * len(kinds))) == len(kinds) else 1
+                drift = 0.0016 * trend_sign
+                anchor_mu = price
+                phase = 0.0
+            elif kind == "chop":
+                anchor_mu = price
+                phase = rng.uniform(0, 6.28)
+                amp = price * vol * 9
+            else:  # "revert": Ornstein-Uhlenbeck pull back to the anchor
+                anchor_mu = price
+                theta = 0.06
+            for k in range(run):
+                noise = rng.gauss(0, 1) * vol
+                if kind == "trend":
+                    ret = drift + noise
+                elif kind == "chop":
+                    target = anchor_mu + amp * math.sin(phase + k / 7.0)
+                    ret = (target - price) / max(price, 1e-9) + noise * 0.35
+                else:
+                    ret = theta * (anchor_mu - price) / max(price, 1e-9) + noise
+                open_ = price
+                close = max(1.0, open_ * (1 + ret))
+                wick = abs(ret) * open_ + open_ * vol * 0.5 * abs(rng.gauss(0, 1))
+                high = max(open_, close) + wick
+                low = max(0.5, min(open_, close) - wick)
+                volume = rng.uniform(50, 500) * (1 + abs(ret) * 20)
+                bars.append(Bar(ts=ts, open=round(open_, 2), high=round(high, 2),
+                                low=round(low, 2), close=round(close, 2),
+                                volume=round(volume, 2)))
+                price = close
+                ts += step
+            i += 1
+        return cls(symbol=symbol, timeframe=timeframe, bars=bars[:n])
+
     # ---------- convenience ----------
     def closes(self) -> List[float]:
         return [b.close for b in self.bars]
