@@ -92,8 +92,19 @@ handed you a beautiful loser. What replaces it:
 ```
 fitness = 0.35 * IS + 0.65 * OOS  -  0.6 * max(0, IS - OOS)
           ...minus additive penalties: thin trading, oversized drawdown,
-             hitting a risk kill-switch
+             hitting a risk kill-switch, and LOSING MONEY IN-SAMPLE
 ```
+
+**The in-sample gate matters more than it looks.** Weighting OOS at 0.65 with a
+one-sided gap term means a genome that *loses* on the data it evolved against
+can still win: an IS Sharpe of −7.59 next to an OOS Sharpe of +32.51 scores
++18.47 and takes the tournament outright. It had every chance to fit the train
+set and still failed, so its out-of-sample result is luck, not edge. A genome
+with a non-positive in-sample score is therefore penalised **and** declared
+ineligible for the crown; only if nothing passes do we fall back to the raw
+best, and that is reported as `degraded_selection` (the CLI prints a warning).
+Every penalty subtracts — scaling a losing genome toward zero turns −5 into
+−1.5, which any max-fitness selector reads as "better".
 
 All penalties **subtract**. Scaling a negative fitness toward zero would turn
 −5 into −1.5, which any max-fitness selector reads as "better" — a classic way
