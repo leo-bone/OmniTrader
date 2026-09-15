@@ -206,6 +206,8 @@ def cmd_web(argv=None) -> int:
     p.add_argument("--port", type=int, default=8787)
     p.add_argument("--home", help="data directory for users.json / session secret")
     p.add_argument("--open", action="store_true", help="open a browser")
+    p.add_argument("--no-auth", action="store_true",
+                   help="disable login (loopback only; for a quick local look)")
     p.add_argument("--create-user", nargs=2, metavar=("USER", "PASSWORD"),
                    help="create (or reset) an account then exit")
     args = p.parse_args(argv)
@@ -222,7 +224,8 @@ def cmd_web(argv=None) -> int:
             print(f"updated password for '{user}'")
         return 0
 
-    serve(args.host, args.port, home=args.home, open_browser=args.open)
+    serve(args.host, args.port, home=args.home, open_browser=args.open,
+          auth_required=not args.no_auth)
     return 0
 
 
