@@ -92,7 +92,10 @@ def sse_tail(path, stop_event, max_sec=90):
 
 
 def main() -> int:
-    home = tempfile.mkdtemp(prefix="ot-e2e-")
+    # NB: tempfile.mkdtemp() lands under /var/folders, which some sandboxes
+    # refuse to let us create. Keep it inside the repo, like conftest.py does.
+    home = os.path.join(ROOT, ".e2e_tmp", f"ot-{int(time.time())}")
+    os.makedirs(home, exist_ok=True)
     env = dict(os.environ, OMNITRADER_HOME=home, PYTHONPATH=ROOT)
     logfile = open(os.path.join(home, "server.log"), "w")
     proc = subprocess.Popen(
@@ -208,6 +211,17 @@ def main() -> int:
               f"trades={result['champion_test']['num_trades']}")
         print(f"     stop reason     {result['stop_reason']}")
 
+        # the eligibility gate must travel through the API, not just the library
+        assert "degraded_selection" in result, "degraded_selection missing from result"
+        degraded = result["degraded_selection"]
+        assert isinstance(degraded, bool)
+        if not degraded:
+            assert result["champion_is"]["sharpe"] > 0, (
+                f"API handed out a champion with no in-sample edge: "
+                f"{result['champion_is']['sharpe']}")
+        print(f"[ok] eligibility     degraded={degraded} "
+              f"IS sharpe={result['champion_is']['sharpe']:+.2f}")
+
         st, jobs = http("GET", "/api/jobs", token=token)
         assert st == 200 and jobs["jobs"], jobs
         print(f"[ok] jobs list       {len(jobs['jobs'])} job(s)")
@@ -227,7 +241,16 @@ def main() -> int:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
-        shutil.rmtree(home, ignore_errors=True)
+        # Removing a large tree can trip bulk-delete guards in sandboxed
+        # environments. That is not a test failure — say so and move on.
+        try:
+            n_files = sum(len(f) for _, _, f in os.walk(home))
+            shutil.rmtree(home, ignore_errors=True)
+            if os.path.exists(home) and n_files > 50:
+                print(f"(note: left {home} in place; {n_files} files, "
+                      f"remove manually if you care)")
+        except Exception as exc:
+            print(f"(note: cleanup skipped: {exc})")
 
     print()
     if failures:
