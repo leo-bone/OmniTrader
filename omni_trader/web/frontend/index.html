@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OmniTrader · 自适应量化交易控制台</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login-view" class="login-wrap">
+  <div class="login-card">
+    <div class="brand">
+      <span class="brand-mark">◈</span>
+      <div>
+        <h1>OmniTrader</h1>
+        <p class="brand-sub">自适应加密量化交易框架</p>
+      </div>
+    </div>
+
+    <form id="login-form" autocomplete="on">
+      <label>用户名
+        <input id="login-user" name="username" type="text" autocomplete="username"
+               placeholder="admin" required autofocus>
+      </label>
+      <label>密码
+        <input id="login-pass" name="password" type="password"
+               autocomplete="current-password" placeholder="••••••••" required>
+      </label>
+      <button id="login-btn" class="btn primary block" type="submit">登 录</button>
+      <p id="login-error" class="err" role="alert"></p>
+    </form>
+
+    <details class="hint">
+      <summary>首次使用 / 忘记密码</summary>
+      <p>首次启动时会生成本机随机管理员密码，打印在启动日志里，并保存在
+         <code>~/.omni_trader/admin-password.txt</code>。</p>
+      <p>也可以用环境变量预设：<code>OMNITRADER_ADMIN_PASSWORD=你的密码 omnitrader web</code></p>
+    </details>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app-view" class="hidden">
+  <header class="topbar">
+    <div class="brand compact">
+      <span class="brand-mark">◈</span>
+      <span class="brand-name">OmniTrader</span>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="backtest">回测实验室</button>
+      <button class="tab" data-tab="evolve">进化实验室</button>
+      <button class="tab" data-tab="about">关于 / 风险</button>
+    </nav>
+    <div class="me">
+      <span id="conn-dot" class="dot ok" title="后端连接状态"></span>
+      <span id="me-name">—</span>
+      <button id="logout-btn" class="btn ghost small">退出</button>
+    </div>
+  </header>
+
+  <!-- ---------- BACKTEST ---------- -->
+  <section id="tab-backtest" class="tab-panel">
+    <div class="layout">
+      <aside class="side">
+        <h2 class="side-title">配置</h2>
+
+        <label class="field">
+          <span>数据源</span>
+          <select id="bt-source">
+            <option value="regimes">合成 · 多市场状态（可挖掘结构）</option>
+            <option value="sample">合成 · 随机漫步（无结构对照）</option>
+            <option value="inline">粘贴 inline K 线</option>
+          </select>
+        </label>
+
+        <div class="grid2">
+          <label class="field"><span>K 线数量</span>
+            <input id="bt-bars" type="number" value="3000" min="200" max="20000" step="100"></label>
+          <label class="field"><span>随机种子</span>
+            <input id="bt-seed" type="number" value="7"></label>
+        </div>
+
+        <div id="bt-inline-wrap" class="hidden">
+          <label class="field">
+            <span>inline K 线 JSON（[ts,o,h,l,c,v] 或 {ts,open,high,low,close,volume}）</span>
+            <textarea id="bt-inline" rows="5" placeholder='[{"ts":1700000000,"open":100,"high":101,"low":99,"close":100.5,"volume":10}, ...]'></textarea>
+          </label>
+        </div>
+
+        <hr>
+
+        <label class="field"><span>策略</span>
+          <select id="bt-strategy"></select>
+        </label>
+        <p id="bt-strategy-help" class="muted"></p>
+        <div id="bt-strategy-params"></div>
+
+        <hr>
+        <h3 class="side-sub">风控参数</h3>
+        <div id="bt-risk-params"></div>
+
+        <hr>
+        <div class="grid2">
+          <label class="field"><span>初始资金</span>
+            <input id="bt-capital" type="number" value="10000" min="100" step="1000"></label>
+          <label class="field"><span>手续费率</span>
+            <input id="bt-fee" type="number" value="0.001" step="0.0001" min="0"></label>
+          <label class="field"><span>滑点</span>
+            <input id="bt-slip" type="number" value="0.0005" step="0.0001" min="0"></label>
+        </div>
+
+        <button id="bt-run" class="btn primary block">运行回测</button>
+        <p id="bt-status" class="muted"></p>
+      </aside>
+
+      <main class="main">
+        <div id="bt-metrics" class="metrics"></div>
+        <div class="card">
+          <div class="card-head"><span>资金曲线</span><span id="bt-curve-label" class="muted"></span></div>
+          <canvas id="bt-chart" height="260"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-head"><span>成交明细（最近 200 笔）</span><span id="bt-trades-label" class="muted"></span></div>
+          <div class="table-wrap"><table id="bt-trades"></table></div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <!-- ---------- EVOLVE ---------- -->
+  <section id="tab-evolve" class="tab-panel hidden">
+    <div class="layout">
+      <aside class="side">
+        <h2 class="side-title">进化配置</h2>
+
+        <label class="field">
+          <span>数据源</span>
+          <select id="ev-source">
+            <option value="regimes">合成 · 多市场状态</option>
+            <option value="sample">合成 · 随机漫步</option>
+          </select>
+        </label>
+        <div class="grid2">
+          <label class="field"><span>K 线数量</span>
+            <input id="ev-bars" type="number" value="3000" min="200" max="20000" step="100"></label>
+          <label class="field"><span>随机种子</span>
+            <input id="ev-seed" type="number" value="7"></label>
+        </div>
+
+        <hr>
+        <label class="field"><span>参与竞争的策略</span></label>
+        <div id="ev-strategies" class="checks"></div>
+
+        <div class="grid2">
+          <label class="field"><span>种群规模</span>
+            <input id="ev-pop" type="number" value="32" min="8" max="200"></label>
+          <label class="field"><span>世代上限</span>
+            <input id="ev-gen" type="number" value="12" min="1" max="100"></label>
+          <label class="field"><span>精英数</span>
+            <input id="ev-elite" type="number" value="2" min="1" max="10"></label>
+          <label class="field"><span>锦标赛规模</span>
+            <input id="ev-tour" type="number" value="3" min="2" max="10"></label>
+          <label class="field"><span>变异率</span>
+            <input id="ev-mut" type="number" value="0.35" step="0.05" min="0" max="1"></label>
+          <label class="field"><span>早停耐心</span>
+            <input id="ev-patience" type="number" value="6" min="1" max="50"></label>
+        </div>
+
+        <hr>
+        <h3 class="side-sub">数据切分（防止偷看未来）</h3>
+        <div class="grid2">
+          <label class="field"><span>训练集占比</span>
+            <input id="ev-train" type="number" value="0.5" step="0.05" min="0.2" max="0.8"></label>
+          <label class="field"><span>验证集占比</span>
+            <input id="ev-val" type="number" value="0.25" step="0.05" min="0.05" max="0.5"></label>
+        </div>
+        <p class="muted small">剩余部分为<b>测试集</b>，进化全程不可见，只在选出冠军后结算一次。</p>
+
+        <div class="btn-row">
+          <button id="ev-start" class="btn primary">开始进化</button>
+          <button id="ev-cancel" class="btn ghost" disabled>终止</button>
+        </div>
+        <p id="ev-status" class="muted"></p>
+      </aside>
+
+      <main class="main">
+        <div id="ev-progress" class="card hidden">
+          <div class="card-head"><span>进度</span><span id="ev-progress-text" class="muted"></span></div>
+          <div class="bar"><div id="ev-bar" class="bar-fill"></div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span>适应度演化</span><span id="ev-legend" class="muted">最优 / 平均</span></div>
+          <canvas id="ev-chart" height="220"></canvas>
+        </div>
+
+        <div id="ev-champion" class="card hidden">
+          <div class="card-head"><span>冠军基因组</span><span id="ev-stop" class="muted"></span></div>
+          <div id="ev-champion-body"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span>世代日志</span><span class="muted">实时</span></div>
+          <div class="table-wrap"><table id="ev-table"></table></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span>事件流</span></div>
+          <div id="ev-log" class="log"></div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <!-- ---------- ABOUT ---------- -->
+  <section id="tab-about" class="tab-panel hidden">
+    <div class="layout single">
+      <div class="card">
+        <h2>这个系统在做什么</h2>
+        <p>策略不是写出来的，是<b>筛出来的</b>。每个「个体」= 一个完整可运行的交易配置：
+           策略种类 + 策略参数 + 风控参数（仓位、止损、止盈、熔断阈值）。</p>
+        <ol>
+          <li><b>种群</b>初始化：多个策略物种混合竞争同一笔资金。</li>
+          <li><b>适应度</b> = 训练集 × 0.35 + 验证集 × 0.65 − 泛化落差 × 0.6。
+              只看回测收益的进化是在做曲线拟合，这里显式惩罚「训练好、验证崩」。</li>
+          <li><b>选择</b>锦标赛 + 精英保留；<b>繁殖</b>交叉 + 变异；重复个体强制再变异。</li>
+          <li><b>测试集</b>全程密封，只在最后给冠军结算一次——这才是可对外报的数字。</li>
+        </ol>
+        <h2>引擎已修掉的坑（源自旧仓库审计）</h2>
+        <ul>
+          <li>前视偏差：信号在下一根 K 线开盘成交，而非当前收盘。</li>
+          <li>空头权益算法错误（旧代码用 <code>capital + abs(pos)*close</code> 虚增净值）。</li>
+          <li>夏普按 t 统计量算 → 改为权益曲线年化夏普 / 索提诺。</li>
+          <li>风控从未被调用 → 现在每根 K 线调用，熔断会真的平仓并禁止新开仓。</li>
+          <li>RSI 平滑分支写反（<code>avg_l/avg_g</code>）→ 已修正为标准定义。</li>
+          <li>指标每根 K 线全量重算 O(n²) → 改为流式 O(1)，3000 根回测约 20–50ms。</li>
+        </ul>
+        <h2>风险提示</h2>
+        <p class="warn">本工具<b>不是投资建议</b>。合成数据上的优异结果不代表真实市场表现。
+           任何策略上线前都必须先在测试网验证，并设置硬性仓位上限。
+           加密货币交易可能导致全部本金损失。</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
