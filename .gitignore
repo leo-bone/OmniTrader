@@ -9,6 +9,7 @@ dist/
 # Test / tool caches
 .pytest_cache/
 .pytest_tmp/
+.e2e_tmp/
 .coverage
 htmlcov/
 
