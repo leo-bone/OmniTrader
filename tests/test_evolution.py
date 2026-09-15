@@ -300,3 +300,46 @@ def test_single_species_evolution(feed):
     res = EvolutionEngine(feed, cfg).run()
     assert res.champion.strategy == "grid"
     assert all(r.best.genome.strategy == "grid" for r in res.history)
+
+
+
+def test_no_edge_penalty_applies_when_losing_in_sample(feed):
+    """Strict mode must penalise a genome with a non-positive IS score, and
+    must strip its eligibility. Loose mode isolates the delta."""
+    is_feed, oos_feed, _ = split_feed(feed, 0.5, 0.25)
+    rng = random.Random(0)
+    strict = Evaluator(is_feed, oos_feed, FitnessConfig())
+    loose = Evaluator(is_feed, oos_feed, FitnessConfig(require_positive_is=False))
+
+    for _ in range(400):
+        g = random_genome(rng.choice(STRATEGIES), rng)
+        rep = strict.evaluate(g)
+        if rep.is_metrics.get("num_trades", 0) < 1:
+            continue
+        if rep.is_metrics["sharpe"] > 0:
+            continue
+        without_guard = loose.evaluate(g)
+        assert rep.fitness < without_guard.fitness - 1e-9, (
+            "no-edge guard did not reduce fitness")
+        assert not rep.eligible
+        assert any("no edge" in n for n in rep.notes)
+        return
+    pytest.skip("no in-sample loser drawn in 400 attempts")
+
+
+def test_champion_must_have_an_in_sample_edge(feed):
+    """The bug this locks down: weighted 0.35/0.65 toward OOS with a one-sided
+    gap term, an IS Sharpe of -7.59 next to an OOS Sharpe of +32.51 scored top
+    of the tournament and took the crown. A champion has to earn on the data it
+    evolved against, or its out-of-sample result is luck rather than edge."""
+    cfg = EvolutionConfig(population_size=24, generations=6, seed=11)
+    res = EvolutionEngine(feed, cfg).run()
+
+    assert isinstance(res.degraded_selection, bool)
+    if not res.degraded_selection:
+        assert res.champion_is["sharpe"] > 0, (
+            f"crowned a genome that lost money on its own training segment: "
+            f"IS sharpe={res.champion_is['sharpe']}, fitness={res.champion_fitness}"
+        )
+        assert res.champion_fitness <= max(r.best_fitness for r in res.history) + 1e-9
+
