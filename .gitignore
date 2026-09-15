@@ -8,6 +8,7 @@ dist/
 
 # Test / tool caches
 .pytest_cache/
+.pytest_tmp/
 .coverage
 htmlcov/
 
@@ -22,6 +23,11 @@ env/
 *.pem
 secrets.json
 credentials.json
+
+# Runtime data written by the web console (users + session secret)
+.omni_trader/
+*.password.txt
+admin-password.txt
 
 # OS
 .DS_Store
