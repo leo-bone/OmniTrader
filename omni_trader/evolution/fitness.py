@@ -42,6 +42,8 @@ class FitnessConfig:
     is_weight: float = 0.35          # OOS is weighted higher on purpose
     oos_weight: float = 0.65
     gap_penalty: float = 0.60        # cost per unit of IS->OOS decay
+    require_positive_is: bool = True  # no earn on data it trained on -> no edge
+    no_edge_penalty: float = 5.0     # subtracted when the IS score is <= 0
     min_trades: int = 12             # below this a genome has not proven much
     thin_penalty: float = 3.0        # max fitness subtracted for a thin sample
     dd_cap_pct: float = 35.0         # drawdown allowed before penalty kicks in
@@ -204,9 +206,23 @@ class Evaluator:
         gap = max(0.0, s_is - s_oos)
         fitness = base - c.gap_penalty * gap
 
+        # A genome that LOSES money on the segment it evolved against has no
+        # demonstrated edge. Whatever it did out-of-sample is luck, not skill:
+        # it had every chance to fit the train set and still failed to profit.
+        #
+        # This is not hypothetical. Weighted 0.35/0.65 toward OOS and with a
+        # one-sided gap term, an IS Sharpe of -7.59 paired with an OOS Sharpe
+        # of +32.51 scores 18.47 and wins the tournament outright. The guard
+        # below makes that genome pay for it and strips its champion rights.
+        lost_train = c.require_positive_is and s_is <= 0.0
+
         # NOTE: every penalty SUBTRACTS. Scaling a negative fitness toward zero
         # would silently reward bad genomes (-5 x 0.3 = -1.5, i.e. "better"),
         # which is a classic way to end up selecting losers.
+        if lost_train:
+            fitness -= c.no_edge_penalty
+            notes.append(
+                f"no edge in-sample: {c.primary}={s_is:.2f} on the data it trained on")
         total_trades = is_res.num_trades + oos_res.num_trades
         if total_trades < c.min_trades:
             shortfall = (c.min_trades - total_trades) / float(c.min_trades)
@@ -227,7 +243,8 @@ class Evaluator:
             notes.append("non-finite fitness")
 
         eligible = (oos_res.num_trades >= c.require_oos_trades
-                    and total_trades >= c.min_trades // 2)
+                    and total_trades >= c.min_trades // 2
+                    and not lost_train)
 
         rep = FitnessReport(
             genome=genome, fitness=fitness,
