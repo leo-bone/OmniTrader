@@ -454,6 +454,13 @@ function renderChampion(r) {
       <span class="muted">来源 ${c.origin} · 第 ${c.generation} 代</span>
       <span class="muted">id ${shortHash(c.id)}</span>
     </div>
+    ${r.degraded_selection
+      ? `<div class="warn" style="margin-top:8px">
+           <b>降级结果，不要用于实盘。</b>
+           没有任何基因组通过资格门槛（在自己训练过的数据段上盈利），
+           当前冠军只是原始适应度最高的一个，它的样本外表现更可能是运气。
+         </div>`
+      : ''}
     <div class="genome">${genes}</div>
     <div class="seg">
       ${segBox('训练集 IS（选择依据）', r.champion_is)}
