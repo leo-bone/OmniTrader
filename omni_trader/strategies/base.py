@@ -79,7 +79,10 @@ class Strategy(ABC):
         for i in range(period + 1, len(closes)):
             avg_g = (avg_g * (period - 1) + gains[i - 1]) / period
             avg_l = (avg_l * (period - 1) + losses[i - 1]) / period
-            out.append(100.0 if avg_l == 0 else 100 - 100 / (1 + avg_l / avg_g))
+            # BUGFIX: this used to divide `avg_l / avg_g`, which mirrors RSI
+            # around 50 for every bar after the seed window and silently
+            # inverted the MeanReversion strategy's long/short logic.
+            out.append(100.0 if avg_l == 0 else 100 - 100 / (1 + avg_g / avg_l))
         return out
 
     @staticmethod
