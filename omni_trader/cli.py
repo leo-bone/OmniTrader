@@ -177,6 +177,10 @@ def cmd_evolve(argv=None) -> int:
               f"sharpe {seg.get('sharpe', 0):+7.2f} | dd {seg.get('max_drawdown_pct', 0):6.2f}% | "
               f"trades {seg.get('num_trades', 0):>4}  ({note})")
     print("=" * 64)
+    if getattr(result, "degraded_selection", False):
+        print("  !! DEGRADED: no genome passed the eligibility gates, so this")
+        print("     champion is just the highest raw fitness. Do not trade it.")
+        print("=" * 64)
     print(f"  generations {result.generations_run} | evaluations {result.total_evaluations} "
           f"| {result.elapsed_sec:.1f}s | {result.stop_reason}")
 
