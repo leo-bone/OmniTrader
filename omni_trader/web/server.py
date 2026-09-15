@@ -331,6 +331,10 @@ class ApiHandler(BaseHTTPRequestHandler):
         return obj
 
     def _current_user(self) -> Optional[Dict[str, Any]]:
+        # --no-auth: every request is treated as the local operator. Safe only
+        # on a loopback bind; refuse the combination below in serve().
+        if not self.server.auth_required:
+            return {"username": "local", "role": "admin"}
         header = self.headers.get("Authorization", "")
         if header.startswith("Bearer "):
             token = header[7:].strip()
@@ -418,6 +422,7 @@ class ApiHandler(BaseHTTPRequestHandler):
         if path == "/api/health" and method == "GET":
             return self._json(200, {
                 "ok": True, "version": "0.2.0",
+                "auth_required": self.server.auth_required,
                 "strategies": sorted(REGISTRY.keys()),
                 "users": len(srv.users.list_users()),
                 "jobs": len(srv.jobs.list()),
@@ -609,7 +614,7 @@ class OmniTraderServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, addr, home: Optional[str] = None):
+    def __init__(self, addr, home: Optional[str] = None, auth_required: bool = True):
         if home:
             os.environ["OMNITRADER_HOME"] = home
         super().__init__(addr, ApiHandler)
@@ -617,13 +622,18 @@ class OmniTraderServer(ThreadingHTTPServer):
         self.sessions = SessionManager()
         self.jobs = JobManager()
         self.guard = LoginGuard()
+        self.auth_required = auth_required
         self.started_at = time.time()
 
 
 def serve(host: str = "127.0.0.1", port: int = 8787, home: Optional[str] = None,
-          open_browser: bool = False) -> None:
+          open_browser: bool = False, auth_required: bool = True) -> None:
     """Start the web server (blocking)."""
-    httpd = OmniTraderServer((host, port), home=home)
+    if not auth_required and host not in ("127.0.0.1", "localhost", "::1"):
+        raise SystemExit(
+            "--no-auth is only allowed on a loopback bind. Refusing to serve an "
+            f"open console on {host!r}. Drop --no-auth or bind to 127.0.0.1.")
+    httpd = OmniTraderServer((host, port), home=home, auth_required=auth_required)
     generated = getattr(httpd.users, "initial_password_generated", False)
     url = f"http://{host}:{port}"
     print("=" * 60)
@@ -631,7 +641,10 @@ def serve(host: str = "127.0.0.1", port: int = 8787, home: Optional[str] = None,
     print("=" * 60)
     print(f"  URL     : {url}")
     print(f"  Users   : {len(httpd.users.list_users())}")
-    if generated:
+    if not auth_required:
+        print("  Login   : DISABLED (--no-auth) — anyone reaching this port "
+              "has full access")
+    elif generated:
         pw = getattr(httpd.users, "initial_password", "?")
         print(f"  Login   : admin / {pw}")
         print(f"  (saved to {home_dir() / 'admin-password.txt'} — delete it later)")
@@ -658,5 +671,8 @@ if __name__ == "__main__":  # python -m omni_trader.web.server
     p.add_argument("--port", type=int, default=8787)
     p.add_argument("--home", help="data dir (users.json, session secret)")
     p.add_argument("--open", action="store_true", help="open a browser on start")
+    p.add_argument("--no-auth", action="store_true",
+                   help="disable login (loopback only; for a quick local look)")
     a = p.parse_args()
-    serve(a.host, a.port, home=a.home, open_browser=a.open)
+    serve(a.host, a.port, home=a.home, open_browser=a.open,
+          auth_required=not a.no_auth)
