@@ -4,16 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "omni-trader"
-version = "0.1.0"
+version = "0.2.0"
 description = "Open-source adaptive crypto quant trading framework: zero-lookahead backtester, live-wired risk controls, CEX + on-chain execution."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "leo-bone" }]
 keywords = ["quant", "crypto", "trading", "backtest", "algorithmic-trading"]
-dependencies = [
-    "pytest>=7.0",
-]
+# Core is dependency-free on purpose (pure stdlib). Everything else is opt-in:
+#   pip install -e ".[live]"       -> ccxt (CEX execution)
+#   pip install -e ".[dashboard]"  -> streamlit + plotly
+#   pip install -e ".[onchain]"    -> web3 + solders + base58
+#   pip install -e ".[dev]"        -> pytest
+dependencies = []
 
 [project.optional-dependencies]
 live = ["ccxt>=4.0"]
@@ -27,6 +30,11 @@ omnitrader = "omni_trader.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["omni_trader*"]
+
+# the web console is shipped inside the package — those files MUST be installed
+# or `omnitrader web` starts with an empty page.
+[tool.setuptools.package-data]
+omni_trader = ["web/frontend/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
