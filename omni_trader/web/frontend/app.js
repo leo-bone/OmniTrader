@@ -2,7 +2,8 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
-const state = { token: localStorage.getItem('ot_token') || '', user: null, space: null, strategies: [] };
+const state = { token: localStorage.getItem('ot_token') || '', user: null,
+                space: null, strategies: [], authDisabled: false };
 
 /* ============================ helpers ============================ */
 function fmt(n, d = 2) {
@@ -46,6 +47,7 @@ async function login(u, p) {
 }
 
 function logout(clearRemote = true) {
+  if (state.authDisabled) return;   // --no-auth mode: there is no session to end
   const token = state.token;
   state.token = ''; state.user = null;
   localStorage.removeItem('ot_token');
@@ -491,8 +493,24 @@ window.addEventListener('resize', () => {
   if (evHistory.length) renderEvoChart();
 });
 
-// restore session if we already have a token
+// On load: if the server runs with --no-auth, skip the login screen entirely.
 (async () => {
+  let health = null;
+  try {
+    health = await fetch('/api/health').then((r) => r.json());
+  } catch (_) { return; }
+
+  if (health && health.auth_required === false) {
+    state.authDisabled = true;
+    $('login-view').classList.add('hidden');
+    $('app-view').classList.remove('hidden');
+    $('me-name').textContent = '本地模式 · 免登录';
+    const btn = $('logout-btn');
+    if (btn) btn.classList.add('hidden');
+    try { await boot(); } catch (_) { /* forms already built */ }
+    return;
+  }
+
   if (!state.token) return;
   try {
     const me = await api('/api/auth/me');
