@@ -17,7 +17,20 @@ case "${1:-}" in
     shift; cd "$ROOT"; exec "$PY" -m omni_trader.cli evolve "$@"
     ;;
   web)
-    shift; cd "$ROOT"; exec "$PY" -m omni_trader.cli web "$@"
+    shift; cd "$ROOT"
+    PORT="8787"; EXTRA=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --port) PORT="${2:-8787}"; shift 2;;
+        --no-auth) EXTRA="$EXTRA --no-auth"; shift;;
+        *) EXTRA="$EXTRA $1"; shift;;
+      esac
+    done
+    echo "启动中… 浏览器会自动打开 http://127.0.0.1:$PORT"
+    [ -z "$EXTRA" ] && echo "登录账号 admin，口令见下方（首次启动随机生成）："
+    echo
+    ( sleep 2; command -v open >/dev/null && open "http://127.0.0.1:$PORT" || true ) &
+    exec "$PY" -m omni_trader.cli web --port "$PORT" $EXTRA
     ;;
   --dashboard|-d)
     exec "$PY" -m streamlit run "$ROOT/dashboard/app.py"
@@ -38,6 +51,7 @@ OmniTrader 用法：
   ./run.sh --strategy momentum [回测参数]    单个配置回测
   ./run.sh evolve [进化参数]                 基因式策略进化（优胜劣汰）
   ./run.sh web --port 8787                   启动 Web 控制台 + REST API（需登录）
+  ./run.sh web --no-auth                     免登录，直接进仪表盘（仅本机）
   ./run.sh --dashboard                       启动 Streamlit 轻量看板
   ./run.sh --test                            运行测试套件
   ./run.sh --e2e                             端到端打通前后端
