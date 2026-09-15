@@ -148,7 +148,14 @@ control experiment that shows what searching **structureless noise** looks like.
 omnitrader web --port 8787
 # or preset credentials:
 OMNITRADER_ADMIN_PASSWORD='...' omnitrader web
+# or skip login entirely for a quick local look (loopback only):
+omnitrader web --no-auth
 ```
+
+`--no-auth` turns every request into the local operator and hides the login
+screen. It is rejected outright unless you bind to `127.0.0.1` / `localhost`,
+so an accidental `--host 0.0.0.0` cannot expose an open console. Use it for
+looking around; don't leave it running on a shared machine.
 
 Open <http://127.0.0.1:8787>. Three tabs:
 
